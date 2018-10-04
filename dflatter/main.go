@@ -18,15 +18,22 @@ func main() {
 
 	for i := len(s) - 1; i >= 0; i-- {
 		log.Printf("Merging %s artifacts\n", s[i])
-		err := cpyDir(path.Join(os.Getenv("HOME"), "eventbrite/docker-dev", s[i]), path.Join("./bundle/", os.Args[1]))
-		if err != nil {
-			fmt.Println(err)
+		if s[i] != os.Args[1] {
+			err := cpyDir(path.Join(os.Getenv("HOME"), "eventbrite/docker-dev", s[i]), path.Join("./bundle/", os.Args[1], "/base"))
+			if err != nil {
+				fmt.Println(err)
+			}
+		} else {
+			err := cpyDir(path.Join(os.Getenv("HOME"), "eventbrite/docker-dev", s[i]), path.Join("./bundle/", os.Args[1]))
+			if err != nil {
+				fmt.Println(err)
+			}
 		}
 		appendFiles(path.Join(os.Getenv("HOME"), "eventbrite/docker-dev", s[i], "Dockerfile"), path.Join("./bundle/", os.Args[1], "Dockerfile"))
 
 	}
 	fmt.Print("\n\n")
-
+	cleanDockerfile(os.Args[1])
 }
 
 func getBaseImage(s []string, folder string) []string {
@@ -49,14 +56,14 @@ func getBaseImage(s []string, folder string) []string {
 	}
 	newFolder := strings.Split(next, "/")
 	if len(newFolder) > 1 {
-		return getBaseImage(s, SpaceMap(string(strings.Split(newFolder[1], ":")[0])))
+		return getBaseImage(s, spaceMap(string(strings.Split(newFolder[1], ":")[0])))
 
 	}
 	//s = append(s, string(next))
 	return s
 }
 
-func SpaceMap(str string) string {
+func spaceMap(str string) string {
 	return strings.Map(func(r rune) rune {
 		if unicode.IsSpace(r) {
 			return -1
@@ -100,7 +107,7 @@ func cpyDir(src string, dst string) error {
 	return nil
 }
 
-// File copies a single file from src to dst
+//File copies a single file from src to dst
 func File(src, dst string) error {
 	var err error
 	var srcfd *os.File
@@ -125,6 +132,8 @@ func File(src, dst string) error {
 	}
 	return os.Chmod(dst, srcinfo.Mode())
 }
+
+//appendFiles appends the content of inName at the end of outName
 func appendFiles(inName, outName string) {
 
 	in, err := os.Open(inName)
@@ -145,10 +154,23 @@ func appendFiles(inName, outName string) {
 	}
 	log.Printf("Appended %s to the end of %s\n", inName, outName)
 
-	// Delete the old input file
 	in.Close()
 	out.Close()
-	if err := os.Remove(inName); err != nil {
-		log.Fatalln("failed to remove", inName)
+}
+
+func cleanDockerfile(folder string) {
+	file, err := os.Open(path.Join("./bundle/", folder, "Dockerfile"))
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		if strings.HasPrefix(scanner.Text(), "FROM") || strings.HasPrefix(scanner.Text(), "from") || strings.HasPrefix(scanner.Text(), "MAINTAINER") {
+			fmt.Println(scanner.Text())
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		log.Fatal(err)
 	}
 }
